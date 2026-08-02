@@ -64,6 +64,36 @@
   }
   .toast.show{opacity:1;}
   .toast.err{border-color:rgba(224,104,90,.4);color:var(--danger);}
+
+  .tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--line);}
+  .tab-btn{background:none;border:none;color:var(--dim);padding:10px 15px;font-size:13px;font-weight:600;
+    border-bottom:2px solid transparent;margin-bottom:-1px;}
+  .tab-btn.active{color:var(--brand);border-bottom-color:var(--brand);}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:18px;}
+  .panel h3{font-size:15px;margin-bottom:14px;}
+  .field{margin-bottom:15px;}
+  .field label{display:block;font-size:12px;color:var(--dim);margin-bottom:6px;font-weight:600;}
+  .field input,.field select,.field textarea{
+    width:100%;padding:11px 13px;background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius-sm);
+    color:var(--text);font-family:inherit;font-size:14px;outline:none;
+  }
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--brand);}
+  .field-row{display:flex;gap:10px;}
+  .field-row .field{flex:1;}
+  .checkbox-row{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;font-weight:600;color:var(--dim);}
+  .checkbox-row input{width:16px;height:16px;accent-color:var(--brand);}
+  .errline{color:var(--danger);font-size:12.5px;margin-top:12px;}
+  .btn-primary{background:var(--brand);color:#06140D;}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+
+  .img-upload-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:14px;}
+  .img-slot{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px;text-align:center;}
+  .img-slot-preview{width:100%;aspect-ratio:1;border-radius:8px;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--dim);font-size:22px;}
+  .img-slot-preview img{width:100%;height:100%;object-fit:cover;}
+  .img-slot-loading{font-size:10.5px;color:var(--dim);}
+  .img-slot-thumb{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:8px;font-size:10.5px;color:var(--dim);}
+  .img-slot-thumb input{width:14px;height:14px;accent-color:var(--brand);}
 </style>
 </head>
 <body>
@@ -85,8 +115,17 @@
     <button class="btn-ghost" id="lockBtn">Lock</button>
   </header>
   <main>
-    <div class="stats-row" id="statsRow"></div>
-    <p style="text-align:center;color:var(--dim);font-size:12.5px;margin-top:20px;">Order-level details aren't available on this view.</p>
+    <div class="tabs">
+      <button class="tab-btn active" data-t="dashboard">Dashboard</button>
+      <button class="tab-btn" data-t="addproduct">Add product</button>
+      <button class="tab-btn" data-t="myproducts">My products</button>
+    </div>
+    <div id="dashboardView">
+      <div class="stats-row" id="statsRow"></div>
+      <p style="text-align:center;color:var(--dim);font-size:12.5px;margin-top:20px;">Order-level details aren't available on this view.</p>
+    </div>
+    <div id="addProductView" style="display:none;"></div>
+    <div id="myProductsView" style="display:none;"></div>
   </main>
 </div>
 
@@ -211,6 +250,288 @@ function renderStats(c){
     <div class="stat-card"><div class="stat-label">Shipped</div><div class="stat-value">${c.shipped_count}</div></div>
     <div class="stat-card"><div class="stat-label">Delivered</div><div class="stat-value" style="color:var(--ok);">${c.delivered_count}</div></div>
     <div class="stat-card"><div class="stat-label">Cancelled</div><div class="stat-value danger">${c.cancelled_count}</div></div>
+  `;
+}
+
+/* ---------------- tabs ---------------- */
+document.querySelectorAll('.tab-btn').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(x=>x.classList.toggle('active', x===b));
+    const t = b.dataset.t;
+    document.getElementById('dashboardView').style.display = t==='dashboard' ? 'block' : 'none';
+    document.getElementById('addProductView').style.display = t==='addproduct' ? 'block' : 'none';
+    document.getElementById('myProductsView').style.display = t==='myproducts' ? 'block' : 'none';
+    // Clear whichever form view isn't active — both use the same field
+    // IDs (pf_title, pf_price, etc.), so leaving a hidden copy in the DOM
+    // causes getElementById to grab the wrong (stale/hidden) fields.
+    if(t!=='addproduct') document.getElementById('addProductView').innerHTML = '';
+    if(t!=='myproducts') document.getElementById('myProductsView').innerHTML = '';
+    if(t==='addproduct') renderAddProduct();
+    if(t==='myproducts') renderMyProducts();
+  });
+});
+
+/* ---------------- add product ---------------- */
+let allCategories = [];
+let pendingImages = ["","","","",""];
+
+async function fetchCategories(){
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/categories?select=*&order=name.asc`, {
+      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization":"Bearer "+SUPABASE_ANON_KEY }
+    });
+    allCategories = res.ok ? await res.json() : [];
+  }catch(e){ allCategories = []; }
+}
+
+async function renderAddProduct(){
+  pendingImages = ["","","","",""];
+  const wrap = document.getElementById('addProductView');
+  wrap.innerHTML = `<p style="color:var(--dim);font-size:13px;">Loading…</p>`;
+  await fetchCategories();
+  wrap.innerHTML = productFormMarkup(null);
+  wireProductForm(null);
+}
+
+function productFormMarkup(existing){
+  const sizesVal = existing && Array.isArray(existing.sizes) ? existing.sizes.join(', ') : '';
+  return `
+    <div class="panel">
+      <h3>${existing ? 'Edit product' : 'Add a new product'}</h3>
+      <div class="field"><label>Title</label><input id="pf_title" value="${existing?escapeHtml(existing.title):''}" placeholder="Product name"></div>
+      <div class="field"><label>Description</label><textarea id="pf_desc" rows="3" placeholder="Short description">${existing?escapeHtml(existing.description||''):''}</textarea></div>
+      <div class="field-row">
+        <div class="field"><label>Selling price (₹)</label><input id="pf_price" value="${existing?existing.price:''}" inputmode="decimal" placeholder="299"></div>
+        <div class="field"><label>Cut price / MRP (₹, optional)</label><input id="pf_mrp" value="${existing&&existing.mrp?existing.mrp:''}" inputmode="decimal" placeholder="899"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Stock</label><input id="pf_stock" value="${existing?(existing.stock||0):''}" inputmode="numeric" placeholder="10"></div>
+        <div class="field"><label>Category</label>
+          <select id="pf_cat">
+            <option value="">No category</option>
+            ${allCategories.map(c=>`<option value="${c.id}" ${existing&&existing.category_id===c.id?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="checkbox-row"><input type="checkbox" id="pf_best" ${existing&&existing.is_bestseller?'checked':''}><label for="pf_best">Mark as best seller</label></div>
+      <div class="checkbox-row"><input type="checkbox" id="pf_hassize" ${existing&&existing.has_sizes?'checked':''}><label for="pf_hassize">This product has sizes (clothing / fashion)</label></div>
+      <div class="field" id="pf_sizes_wrap" style="${existing&&existing.has_sizes?'':'display:none;'}">
+        <label>Sizes (comma separated)</label>
+        <input id="pf_sizes" value="${escapeHtml(sizesVal)}" placeholder="S, M, L, XL">
+      </div>
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--dim);margin:14px 0 8px;">Product photos — upload 4–5 images, then pick the thumbnail</label>
+      <div class="img-upload-grid" id="pfImageGrid">
+        ${[0,1,2,3,4].map(i=>imageSlotHtml(i)).join('')}
+      </div>
+      <div id="pfErr" class="errline"></div>
+      <button class="btn btn-primary" id="pfSaveBtn" style="margin-top:8px;">${existing?'Save changes':'Add product'}</button>
+      ${existing?`<button class="btn btn-ghost" id="pfCancelBtn" style="margin-top:8px;width:100%;">Cancel</button>`:''}
+    </div>
+  `;
+}
+
+function wireProductForm(existing){
+  pendingImages = existing ? [0,1,2,3,4].map(i => (existing.images||[])[i] || "") : ["","","","",""];
+  document.querySelectorAll('.img-slot').forEach((slot,i)=>{
+    const preview = document.getElementById(`imgSlotPreview${i}`);
+    if(pendingImages[i]) preview.innerHTML = `<img src="${escapeHtml(pendingImages[i])}">`;
+  });
+  wireImageSlots();
+  document.getElementById('pf_hassize').addEventListener('change', e=>{
+    document.getElementById('pf_sizes_wrap').style.display = e.target.checked ? 'block' : 'none';
+  });
+  document.getElementById('pfSaveBtn').addEventListener('click', ()=>saveProduct(existing));
+  const cancelBtn = document.getElementById('pfCancelBtn');
+  if(cancelBtn) cancelBtn.addEventListener('click', renderMyProducts);
+}
+
+function imageSlotHtml(i){
+  return `
+    <div class="img-slot" data-slot="${i}">
+      <div class="img-slot-preview" id="imgSlotPreview${i}"><span>+</span></div>
+      <input type="file" accept="image/*" id="pf_file${i}" style="display:none;">
+      <button type="button" class="btn btn-ghost" style="width:100%;margin-top:6px;" data-pick="${i}">Upload</button>
+      <div class="img-slot-thumb">
+        <input type="radio" name="pf_thumb" value="${i}" id="pf_thumb${i}" ${i===0?'checked':''}>
+        <label for="pf_thumb${i}">Thumbnail</label>
+      </div>
+    </div>
+  `;
+}
+
+async function uploadPinImage(file){
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g,'') || 'jpg';
+  const path = `${sessionToken}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/product-images/${path}`, {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+      "apikey": SUPABASE_ANON_KEY,
+      "Content-Type": file.type || "application/octet-stream",
+    },
+    body: file,
+  });
+  if(!res.ok){ const t = await res.text(); throw new Error(t || res.statusText); }
+  return `${SUPABASE_URL}/storage/v1/object/public/product-images/${path}`;
+}
+
+function wireImageSlots(){
+  for(let i=0;i<5;i++){
+    const pickBtn = document.querySelector(`[data-pick="${i}"]`);
+    const fileInput = document.getElementById(`pf_file${i}`);
+    if(!pickBtn || !fileInput) continue;
+    pickBtn.addEventListener('click', ()=> fileInput.click());
+    fileInput.addEventListener('change', async ()=>{
+      const file = fileInput.files[0];
+      if(!file) return;
+      const preview = document.getElementById(`imgSlotPreview${i}`);
+      preview.innerHTML = `<span class="img-slot-loading">Uploading…</span>`;
+      pickBtn.disabled = true;
+      try{
+        const url = await uploadPinImage(file);
+        pendingImages[i] = url;
+        preview.innerHTML = `<img src="${escapeHtml(url)}">`;
+        pickBtn.textContent = 'Replace';
+        toast('Photo uploaded.');
+      }catch(e){
+        preview.innerHTML = pendingImages[i] ? `<img src="${escapeHtml(pendingImages[i])}">` : `<span>+</span>`;
+        toast("Couldn't upload photo: " + e.message, true);
+      }finally{
+        pickBtn.disabled = false;
+      }
+    });
+  }
+}
+
+async function saveProduct(existing){
+  const err = document.getElementById('pfErr'); err.textContent = '';
+  const title = document.getElementById('pf_title').value.trim();
+  const desc = document.getElementById('pf_desc').value.trim();
+  const price = parseFloat(document.getElementById('pf_price').value);
+  const mrpRaw = document.getElementById('pf_mrp').value.trim();
+  const mrp = mrpRaw ? parseFloat(mrpRaw) : null;
+  const stock = parseInt(document.getElementById('pf_stock').value) || 0;
+  const categoryId = document.getElementById('pf_cat').value || null;
+  const isBest = document.getElementById('pf_best').checked;
+  const hasSizes = document.getElementById('pf_hassize').checked;
+  const sizes = hasSizes ? document.getElementById('pf_sizes').value.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  const thumbRadio = document.querySelector('input[name=pf_thumb]:checked');
+  const thumbIdx = thumbRadio ? parseInt(thumbRadio.value) : 0;
+  const thumbVal = pendingImages[thumbIdx];
+  let imgs = pendingImages.filter(Boolean);
+  if(thumbVal){ imgs = [thumbVal, ...imgs.filter(u=>u!==thumbVal)]; }
+
+  if(!title || !price || price<=0){ err.textContent = "Enter a title and a valid selling price."; return; }
+  if(mrp && mrp<price){ err.textContent = "Cut price (MRP) should be higher than the selling price."; return; }
+  if(hasSizes && sizes.length===0){ err.textContent = "Add at least one size, or untick 'has sizes'."; return; }
+  if(imgs.length===0){ err.textContent = "Upload at least one product photo."; return; }
+
+  const btn = document.getElementById('pfSaveBtn'); btn.disabled = true;
+  try{
+    if(existing){
+      await rpcFetch('seller_pin_update_product', {
+        p_token: sessionToken, p_id: existing.id,
+        p_title: title, p_description: desc, p_price: price, p_mrp: mrp, p_stock: stock,
+        p_category_id: categoryId, p_is_bestseller: isBest, p_has_sizes: hasSizes,
+        p_sizes: sizes, p_images: imgs, p_is_listed: existing.is_listed,
+      });
+      toast("Product updated.");
+      renderMyProducts();
+    } else {
+      await rpcFetch('seller_pin_add_product', {
+        p_token: sessionToken,
+        p_title: title, p_description: desc, p_price: price, p_mrp: mrp, p_stock: stock,
+        p_category_id: categoryId, p_is_bestseller: isBest, p_has_sizes: hasSizes,
+        p_sizes: sizes, p_images: imgs,
+      });
+      toast("Product added — it's now live in the shop.");
+      renderAddProduct();
+    }
+  }catch(e){
+    if((e.message||'').includes('SESSION_EXPIRED')){
+      toast('Session expired — please unlock again.', true);
+      document.getElementById('lockBtn').click();
+    } else {
+      err.textContent = "Couldn't save: " + e.message;
+    }
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+/* ---------------- my products ---------------- */
+async function renderMyProducts(){
+  const wrap = document.getElementById('myProductsView');
+  wrap.innerHTML = `<p style="color:var(--dim);font-size:13px;">Loading…</p>`;
+  await fetchCategories();
+  try{
+    const products = await rpcFetch('seller_pin_list_products', { p_token: sessionToken });
+    if(!products.length){
+      wrap.innerHTML = `<p style="color:var(--dim);font-size:13px;">No products yet — add one from the "Add product" tab.</p>`;
+      return;
+    }
+    wrap.innerHTML = products.map(productManageCard).join('');
+    wrap.querySelectorAll('[data-editproduct]').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        const p = products.find(x=>x.id===b.dataset.editproduct);
+        wrap.innerHTML = productFormMarkup(p);
+        wireProductForm(p);
+      });
+    });
+    wrap.querySelectorAll('[data-togglelist]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        const p = products.find(x=>x.id===b.dataset.togglelist);
+        b.disabled = true;
+        try{
+          await rpcFetch('seller_pin_update_product', {
+            p_token: sessionToken, p_id: p.id,
+            p_title: p.title, p_description: p.description, p_price: p.price, p_mrp: p.mrp, p_stock: p.stock,
+            p_category_id: p.category_id, p_is_bestseller: p.is_bestseller, p_has_sizes: p.has_sizes,
+            p_sizes: p.sizes, p_images: p.images, p_is_listed: !p.is_listed,
+          });
+          toast(p.is_listed ? "Product unlisted." : "Product listed again.");
+          renderMyProducts();
+        }catch(e){
+          toast("Couldn't update: " + e.message, true);
+          b.disabled = false;
+        }
+      });
+    });
+  }catch(e){
+    if((e.message||'').includes('SESSION_EXPIRED')){
+      toast('Session expired — please unlock again.', true);
+      document.getElementById('lockBtn').click();
+    } else {
+      wrap.innerHTML = `<p style="color:var(--danger);font-size:13px;">Couldn't load products: ${escapeHtml(e.message)}</p>`;
+    }
+  }
+}
+
+function productManageCard(p){
+  const thumb = (Array.isArray(p.images) && p.images[0]) ? p.images[0] : '';
+  return `
+    <div class="panel">
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        ${thumb ? `<img src="${escapeHtml(thumb)}" style="width:56px;height:56px;border-radius:8px;object-fit:cover;flex-shrink:0;">` : `<div style="width:56px;height:56px;border-radius:8px;background:var(--panel2);flex-shrink:0;"></div>`}
+        <div style="flex:1;min-width:0;">
+          <h3 style="font-size:14px;margin-bottom:2px;">${escapeHtml(p.title)}</h3>
+          <div style="font-size:12.5px;color:var(--dim);">₹${Number(p.price).toLocaleString('en-IN')}${p.mrp?` <s>₹${Number(p.mrp).toLocaleString('en-IN')}</s>`:''} · Stock ${p.stock||0}</div>
+          <div style="margin-top:4px;">
+            <span class="pill" style="background:${p.is_listed?'var(--brand-dim)':'var(--danger-dim)'};color:${p.is_listed?'var(--brand)':'var(--danger)'};">${p.is_listed?'Listed':'Unlisted'}</span>
+          </div>
+        </div>
+      </div>
+      <div class="stats-row" style="margin-top:14px;margin-bottom:0;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));">
+        <div class="stat-card"><div class="stat-label">Total buys</div><div class="stat-value brand" style="font-size:18px;">${p.total_orders}</div></div>
+        <div class="stat-card"><div class="stat-label">Shipping</div><div class="stat-value" style="font-size:18px;">${p.shipped_count}</div></div>
+        <div class="stat-card"><div class="stat-label">Delivered</div><div class="stat-value" style="font-size:18px;color:var(--ok);">${p.delivered_count}</div></div>
+        <div class="stat-card"><div class="stat-label">Cancelled</div><div class="stat-value danger" style="font-size:18px;">${p.cancelled_count}</div></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="btn btn-ghost" style="width:auto;flex:1;" data-editproduct="${p.id}">Edit</button>
+        <button class="btn btn-ghost" style="width:auto;flex:1;" data-togglelist="${p.id}">${p.is_listed?'Unlist':'List again'}</button>
+      </div>
+    </div>
   `;
 }
 
