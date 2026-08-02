@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kitque — Seller Orders</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0E1310; --panel:#161C18; --panel2:#1D2420; --line:#2A332C;
+    --text:#EDEFE9; --dim:#8B9488; --brand:#4CC490; --brand-dim:rgba(76,196,144,.14);
+    --amber:#E8A33D; --amber-dim:rgba(232,163,61,.14);
+    --danger:#E0685A; --danger-dim:rgba(224,104,90,.14); --ok:#6FCF97;
+    --radius:12px; --radius-sm:8px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Manrope',sans-serif;-webkit-font-smoothing:antialiased;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  h1,h2,h3{font-family:'Fraunces',serif;font-weight:600;margin:0;}
+  button{font-family:inherit;cursor:pointer;}
+
+  #pinScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .pin-card{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:34px 30px;text-align:center;}
+  .pin-eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2.5px;color:var(--brand);text-transform:uppercase;}
+  .pin-title{font-family:'Fraunces',serif;font-size:24px;font-weight:600;margin:10px 0 22px;}
+  #pinInput{
+    width:100%;padding:14px;background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius-sm);
+    color:var(--text);font-family:'JetBrains Mono',monospace;font-size:18px;text-align:center;letter-spacing:3px;outline:none;margin-bottom:16px;
+  }
+  #pinInput:focus{border-color:var(--brand);}
+  .btn{padding:13px 16px;border-radius:var(--radius-sm);border:none;font-weight:700;font-size:14px;width:100%;text-align:center;}
+  .btn-primary{background:var(--brand);color:#06140D;}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+  .pinErr{color:var(--danger);font-size:12.5px;margin-top:12px;min-height:16px;}
+  .pin-hint{font-size:11.5px;color:var(--dim);margin-top:18px;line-height:1.6;}
+
+  #app{display:none;}
+  #app.open{display:block;}
+  header{
+    position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;
+    padding:16px 22px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap;gap:10px;
+  }
+  .brand{font-family:'Fraunces',serif;font-weight:600;font-size:17px;display:flex;align-items:center;gap:8px;}
+  .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--brand);box-shadow:0 0 8px var(--brand);}
+  .brand .console{color:var(--dim);font-weight:500;font-size:12.5px;}
+  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--text);padding:8px 13px;border-radius:8px;font-size:12.5px;font-weight:700;width:auto;}
+  .btn-ghost:hover{border-color:var(--brand);color:var(--brand);}
+
+  main{max-width:1100px;margin:0 auto;padding:22px;}
+
+  .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px;}
+  .stat-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;}
+  .stat-label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-weight:600;}
+  .stat-value{font-family:'Fraunces',serif;font-size:22px;font-weight:600;margin-top:5px;}
+  .stat-value.brand{color:var(--brand);} .stat-value.amber{color:var(--amber);} .stat-value.danger{color:var(--danger);}
+
+  .tabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--line);}
+  .tab-btn{background:none;border:none;color:var(--dim);padding:10px 15px;font-size:13px;font-weight:600;
+    border-bottom:2px solid transparent;margin-bottom:-1px;}
+  .tab-btn.active{color:var(--brand);border-bottom-color:var(--brand);}
+
+  .filter-row{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px;}
+  .filter-row input,.filter-row select{
+    padding:9px 11px;background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius-sm);
+    color:var(--text);font-size:12.5px;font-family:'JetBrains Mono',monospace;
+  }
+  .filter-row input#searchBox{flex:1;min-width:180px;}
+
+  .olist{display:flex;flex-direction:column;gap:10px;}
+  .ocard{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;}
+  .ocard-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;}
+  .ordno{font-family:'Fraunces',serif;font-weight:600;font-size:15px;color:var(--brand);}
+  .ocode{font-size:11px;color:var(--dim);}
+  .pill{font-family:'JetBrains Mono',monospace;font-size:10px;padding:3px 10px;border-radius:999px;text-transform:uppercase;font-weight:600;display:inline-block;}
+  .pill-Confirmed{background:var(--brand-dim);color:var(--brand);}
+  .pill-Shipped{background:var(--amber-dim);color:var(--amber);}
+  .pill-Delivered{background:rgba(111,207,151,.15);color:var(--ok);}
+  .pill-Cancelled{background:var(--danger-dim);color:var(--danger);}
+  .ofield{font-size:12.5px;color:var(--dim);margin-top:8px;line-height:1.6;}
+  .ofield b{color:var(--text);font-weight:600;}
+  .oacts{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px;}
+  .status-btn{padding:8px 13px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--dim);font-size:12px;font-weight:700;}
+  .status-btn.sb-Confirmed:hover,.status-btn.sb-Confirmed.current{border-color:var(--brand);color:var(--brand);background:var(--brand-dim);}
+  .status-btn.sb-Shipped:hover,.status-btn.sb-Shipped.current{border-color:var(--amber);color:var(--amber);background:var(--amber-dim);}
+  .status-btn.sb-Delivered:hover,.status-btn.sb-Delivered.current{border-color:var(--ok);color:var(--ok);background:rgba(111,207,151,.15);}
+  .status-btn.sb-Cancelled:hover,.status-btn.sb-Cancelled.current{border-color:var(--danger);color:var(--danger);background:var(--danger-dim);}
+  .status-btn:disabled{opacity:.45;cursor:not-allowed;}
+  .empty-state{color:var(--dim);font-size:13px;padding:30px 0;text-align:center;}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:12px 20px;border-radius:999px;
+    font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .25s;z-index:50;max-width:90vw;text-align:center;
+  }
+  .toast.show{opacity:1;}
+  .toast.err{border-color:rgba(224,104,90,.4);color:var(--danger);}
+</style>
+</head>
+<body>
+
+<div id="pinScreen">
+  <div class="pin-card">
+    <div class="pin-eyebrow">Kitque</div>
+    <div class="pin-title">Seller access</div>
+    <input type="password" id="pinInput" inputmode="text" placeholder="Enter access code" autocomplete="off" maxlength="30">
+    <button class="btn btn-primary" id="pinBtn">Unlock</button>
+    <div class="pinErr" id="pinErr"></div>
+    <p class="pin-hint">View orders and update their status. Product and pricing changes aren't available here.</p>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <div class="brand"><span class="dot"></span>Kitque <span class="console">Seller</span></div>
+    <button class="btn-ghost" id="lockBtn">Lock</button>
+  </header>
+  <main>
+    <div class="stats-row" id="statsRow"></div>
+    <div class="tabs">
+      <button class="tab-btn active" data-t="today">Today's orders</button>
+      <button class="tab-btn" data-t="all">All orders</button>
+    </div>
+    <div class="filter-row">
+      <input type="text" id="searchBox" placeholder="Search code, buyer, mobile, product…">
+      <select id="statusFilter">
+        <option value="">All statuses</option>
+        <option value="Confirmed">Confirmed</option>
+        <option value="Shipped">Shipped</option>
+        <option value="Delivered">Delivered</option>
+        <option value="Cancelled">Cancelled</option>
+      </select>
+    </div>
+    <div class="olist" id="orderList"></div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = "https://dnkcfluxdaefdzzxiwyi.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRua2NmbHV4ZGFlZmR6enhpd3lpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0NjYzMDEsImV4cCI6MjEwMTA0MjMwMX0.WuPtSaXs9s8j1NjoIysUMNG89KSZn94cP45fm5qiZ-4";
+
+let sessionToken = localStorage.getItem('kitque_seller_token') || null;
+let allOrders = [];
+let activeTab = 'today';
+let lockTimer = null;
+
+function escapeHtml(s){
+  return String(s==null?"":s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function toast(msg, isErr){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.toggle('err', !!isErr); t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+async function rpcFetch(fn, body){
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method:"POST",
+    headers:{ "apikey": SUPABASE_ANON_KEY, "Authorization":"Bearer "+SUPABASE_ANON_KEY, "Content-Type":"application/json" },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json().catch(()=>null);
+  if(!res.ok){
+    const msg = (data && (data.message || data.error_description || data.hint)) || res.statusText;
+    throw new Error(msg);
+  }
+  return data;
+}
+
+/* ---------------- pin login ---------------- */
+document.getElementById('pinBtn').addEventListener('click', doPinLogin);
+document.getElementById('pinInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doPinLogin(); });
+
+async function doPinLogin(){
+  const pin = document.getElementById('pinInput').value.trim();
+  const err = document.getElementById('pinErr');
+  const btn = document.getElementById('pinBtn');
+  err.textContent = '';
+  if(!pin){ err.textContent = 'Enter the access code.'; return; }
+  btn.disabled = true; btn.textContent = 'Checking…';
+  try{
+    const rows = await rpcFetch('seller_pin_login', { p_pin: pin });
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    sessionToken = row.token;
+    localStorage.setItem('kitque_seller_token', sessionToken);
+    document.getElementById('pinInput').value = '';
+    enterApp();
+  }catch(e){
+    const msg = e.message || '';
+    if(msg.startsWith('LOCKED:')){
+      const secs = parseInt(msg.split(':')[1]) || 300;
+      startLockCountdown(secs);
+    } else if(msg === 'WRONG_PIN'){
+      err.textContent = 'Wrong code. Please try again.';
+    } else {
+      err.textContent = 'Something went wrong: ' + msg;
+    }
+  }finally{
+    btn.disabled = false; btn.textContent = 'Unlock';
+  }
+}
+
+function startLockCountdown(seconds){
+  const err = document.getElementById('pinErr');
+  const btn = document.getElementById('pinBtn');
+  btn.disabled = true;
+  clearInterval(lockTimer);
+  let left = seconds;
+  const tick = ()=>{
+    const m = Math.floor(left/60), s = left%60;
+    err.textContent = `Too many attempts. Try again in ${m}:${String(s).padStart(2,'0')}.`;
+    if(left<=0){ clearInterval(lockTimer); btn.disabled = false; err.textContent = ''; }
+    left--;
+  };
+  tick();
+  lockTimer = setInterval(tick, 1000);
+}
+
+document.getElementById('lockBtn').addEventListener('click', ()=>{
+  sessionToken = null;
+  localStorage.removeItem('kitque_seller_token');
+  document.getElementById('app').classList.remove('open');
+  document.getElementById('pinScreen').style.display = 'flex';
+});
+
+async function enterApp(){
+  document.getElementById('pinScreen').style.display = 'none';
+  document.getElementById('app').classList.add('open');
+  await loadOrders();
+}
+
+/* ---------------- orders ---------------- */
+async function loadOrders(){
+  try{
+    allOrders = await rpcFetch('seller_pin_list_orders', { p_token: sessionToken });
+    renderStats();
+    renderOrders();
+  }catch(e){
+    if((e.message||'').includes('SESSION_EXPIRED')){
+      toast('Session expired — please unlock again.', true);
+      document.getElementById('lockBtn').click();
+    } else {
+      toast("Couldn't load orders: " + e.message, true);
+    }
+  }
+}
+
+function todaysOrders(){
+  const todayStr = new Date().toDateString();
+  return allOrders.filter(o => new Date(o.created_at).toDateString() === todayStr);
+}
+
+function renderStats(){
+  const today = todaysOrders();
+  const pending = allOrders.filter(o=>o.status==='Confirmed').length;
+  const shipped = allOrders.filter(o=>o.status==='Shipped').length;
+  const delivered = allOrders.filter(o=>o.status==='Delivered').length;
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Today</div><div class="stat-value brand">${today.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Pending</div><div class="stat-value amber">${pending}</div></div>
+    <div class="stat-card"><div class="stat-label">Shipped</div><div class="stat-value">${shipped}</div></div>
+    <div class="stat-card"><div class="stat-label">Delivered</div><div class="stat-value" style="color:var(--ok);">${delivered}</div></div>
+  `;
+}
+
+document.querySelectorAll('.tab-btn').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    activeTab = b.dataset.t;
+    document.querySelectorAll('.tab-btn').forEach(x=>x.classList.toggle('active', x===b));
+    renderOrders();
+  });
+});
+document.getElementById('searchBox').addEventListener('input', renderOrders);
+document.getElementById('statusFilter').addEventListener('change', renderOrders);
+
+function renderOrders(){
+  const q = document.getElementById('searchBox').value.trim().toLowerCase();
+  const statusF = document.getElementById('statusFilter').value;
+  let list = activeTab==='today' ? todaysOrders() : allOrders;
+  list = list.filter(o=>{
+    if(statusF && o.status !== statusF) return false;
+    if(q){
+      const hay = `${o.order_code} ${o.buyer_name} ${o.mobile} ${o.product_title}`.toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  const wrap = document.getElementById('orderList');
+  if(!list.length){ wrap.innerHTML = `<div class="empty-state">No orders here.</div>`; return; }
+  wrap.innerHTML = list.map(orderCard).join('');
+  wrap.querySelectorAll('[data-setstatus]').forEach(b=>{
+    b.addEventListener('click', ()=>updateStatus(b.dataset.code, b.dataset.setstatus));
+  });
+}
+
+function orderCard(o){
+  const statuses = ["Confirmed","Shipped","Delivered","Cancelled"];
+  return `
+    <div class="ocard">
+      <div class="ocard-top">
+        <div>
+          <span class="ordno">#${o.order_number}</span>
+          <div class="ocode mono">${escapeHtml(o.order_code)}</div>
+        </div>
+        <span class="pill pill-${o.status}">${o.status}</span>
+      </div>
+      <div class="ofield"><b>${escapeHtml(o.product_title)}</b>${o.size?` · ${escapeHtml(o.size)}`:''} · Qty ${o.quantity||1} · ₹${Number(o.total_price||o.price).toLocaleString('en-IN')}</div>
+      <div class="ofield">${escapeHtml(o.buyer_name)} · ${escapeHtml(o.mobile)}</div>
+      <div class="ofield">${escapeHtml(o.address)}, ${escapeHtml(o.village)}, ${escapeHtml(o.district)}, ${escapeHtml(o.state)}</div>
+      <div class="ofield">Placed ${new Date(o.created_at).toLocaleDateString()} · Delivery date ${o.expected_delivery||'—'}</div>
+      <div class="oacts">
+        ${statuses.map(s=>`<button class="status-btn sb-${s}${o.status===s?' current':''}" data-code="${o.order_code}" data-setstatus="${s}" ${o.status===s?'disabled':''}>${s}</button>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+async function updateStatus(code, status){
+  try{
+    await rpcFetch('seller_pin_update_status', { p_token: sessionToken, p_order_code: code, p_status: status });
+    toast(`${code} → ${status}`);
+    await loadOrders();
+  }catch(e){
+    if((e.message||'').includes('SESSION_EXPIRED')){
+      toast('Session expired — please unlock again.', true);
+      document.getElementById('lockBtn').click();
+    } else {
+      toast("Couldn't update: " + e.message, true);
+    }
+  }
+}
+
+/* ---------------- init ---------------- */
+(async function init(){
+  if(sessionToken){
+    try{ await enterApp(); }
+    catch(e){ /* fall through to pin screen */ }
+  }
+})();
+</script>
+</body>
+</html>
